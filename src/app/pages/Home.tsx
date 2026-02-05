@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import Link from 'next/link';
 import { Trophy, Users, UserCircle, Calendar, Table2, Plus } from 'lucide-react';
 import { getDivisions, getTeams, getPlayers, getMatches } from '../storage';
 
@@ -31,7 +31,7 @@ export function Home() {
           return (
             <Link
               key={card.title}
-              to={card.link}
+              href={card.link}
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
@@ -51,21 +51,21 @@ export function Home() {
         <h3 className="text-xl font-bold text-gray-900 mb-4">Acciones Rápidas</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
-            to="/divisiones"
+            href="/divisiones"
             className="flex items-center gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
           >
             <Plus className="w-5 h-5 text-green-600" />
             <span className="font-medium text-gray-700">Nueva División</span>
           </Link>
           <Link
-            to="/equipos"
+            href="/equipos"
             className="flex items-center gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
           >
             <Plus className="w-5 h-5 text-green-600" />
             <span className="font-medium text-gray-700">Nuevo Equipo</span>
           </Link>
           <Link
-            to="/fixture"
+            href="/fixture"
             className="flex items-center gap-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
           >
             <Calendar className="w-5 h-5 text-green-600" />

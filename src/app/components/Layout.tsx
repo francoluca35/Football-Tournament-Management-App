@@ -1,11 +1,15 @@
-import { Link, Outlet, useLocation } from 'react-router';
+'use client';
+
+import { type ReactNode } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Trophy, Users, UserCircle, Calendar, Table2, Home } from 'lucide-react';
 
-export function Layout() {
-  const location = useLocation();
+export function Layout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
 
   const isActive = (path: string) => {
-    return location.pathname === path;
+    return pathname === path;
   };
 
   const navItems = [
@@ -39,7 +43,7 @@ export function Layout() {
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
+                  href={item.path}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
                     active
                       ? 'text-green-600 border-green-600'
@@ -56,9 +60,7 @@ export function Layout() {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <Outlet />
-      </main>
+      <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
     </div>
   );
 }
