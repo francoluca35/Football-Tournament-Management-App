@@ -123,30 +123,30 @@ export function Fixture() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Fixture</h2>
-          <p className="text-gray-600">Genera y gestiona los partidos del torneo</p>
+          <h2 className="text-2xl font-semibold text-foreground">Fixture</h2>
+          <p className="text-muted-foreground">Genera y gestiona los partidos del torneo</p>
         </div>
       </div>
 
       {divisions.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No hay divisiones</h3>
-          <p className="text-gray-600">Primero debes crear divisiones y equipos</p>
+        <div className="rounded-xl border border-border bg-card/80 p-12 text-center shadow-sm">
+          <Calendar className="w-16 h-16 text-muted-foreground/60 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-foreground mb-2">No hay divisiones</h3>
+          <p className="text-muted-foreground">Primero debes crear divisiones y equipos</p>
         </div>
       ) : (
         <>
           {/* Selector de división y acciones */}
-          <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="rounded-xl border border-border bg-card/80 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   División
                 </label>
                 <select
                   value={selectedDivision}
                   onChange={(e) => setSelectedDivision(e.target.value)}
-                  className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full md:w-64 px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   {divisions.map(division => (
                     <option key={division.id} value={division.id}>
@@ -160,7 +160,7 @@ export function Fixture() {
                 <button
                   onClick={generateRandomFixture}
                   disabled={divisionTeams.length < 2}
-                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 transition-colors disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
                 >
                   <Shuffle className="w-5 h-5" />
                   Generar Aleatorio
@@ -168,7 +168,7 @@ export function Fixture() {
                 {divisionMatches.length > 0 && (
                   <button
                     onClick={deleteFixture}
-                    className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                    className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-destructive-foreground hover:bg-destructive/90 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                     Eliminar Fixture
@@ -180,10 +180,10 @@ export function Fixture() {
 
           {/* Fixture por fechas */}
           {divisionMatches.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No hay fixture generado</h3>
-              <p className="text-gray-600 mb-6">
+            <div className="rounded-xl border border-border bg-card/80 p-12 text-center shadow-sm">
+              <Calendar className="w-16 h-16 text-muted-foreground/60 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No hay fixture generado</h3>
+              <p className="text-muted-foreground mb-6">
                 {divisionTeams.length < 2
                   ? 'Necesitas al menos 2 equipos para generar un fixture'
                   : 'Genera el fixture automáticamente o crea partidos manualmente'}
@@ -191,7 +191,7 @@ export function Fixture() {
               {divisionTeams.length >= 2 && (
                 <button
                   onClick={generateRandomFixture}
-                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  className="rounded-lg bg-primary px-6 py-2 text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   Generar Fixture Aleatorio
                 </button>
@@ -204,17 +204,17 @@ export function Fixture() {
                 const playedMatches = matchdayMatches.filter(m => m.homeScore !== undefined).length;
 
                 return (
-                  <div key={matchday} className="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
+                  <div key={matchday} className="rounded-xl border border-border bg-card/80 overflow-hidden shadow-sm">
+                    <div className="bg-accent/60 px-6 py-4 border-b border-border flex items-center justify-between">
                       <div>
-                      <h3 className="text-lg font-bold text-gray-900">Fecha {matchday}</h3>
-                        <p className="text-sm text-gray-600">
+                      <h3 className="text-lg font-semibold text-foreground">Fecha {matchday}</h3>
+                        <p className="text-sm text-muted-foreground">
                           {playedMatches} de {matchdayMatches.length} partidos jugados
                         </p>
                       </div>
                     </div>
 
-                    <div className="divide-y divide-gray-200">
+                    <div className="divide-y divide-border/60">
                       {matchdayMatches.map(match => {
                         const homeTeam = teams.find(t => t.id === match.homeTeamId);
                         const awayTeam = teams.find(t => t.id === match.awayTeamId);
@@ -223,14 +223,14 @@ export function Fixture() {
                         return (
                           <div
                             key={match.id}
-                            className={`p-4 hover:bg-gray-50 transition-colors ${
-                              hasResult ? 'bg-green-50' : ''
+                            className={`p-4 hover:bg-accent/40 transition-colors ${
+                              hasResult ? 'bg-emerald-500/10' : ''
                             }`}
                           >
                             <div className="flex items-center justify-between gap-4">
                               {/* Equipo Local */}
                               <div className="flex items-center gap-3 flex-1 justify-end">
-                                <span className="font-medium text-gray-900 text-right">
+                                <span className="font-medium text-foreground text-right">
                                   {getTeamName(match.homeTeamId)}
                                 </span>
                                 {homeTeam?.logoUrl && (
@@ -245,27 +245,27 @@ export function Fixture() {
                               {/* Resultado */}
                               <div className="flex items-center gap-3">
                                 {match.zone && (
-                                  <span className="text-xs font-semibold uppercase bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+                                  <span className="text-xs font-semibold uppercase bg-accent/60 text-muted-foreground px-2 py-1 rounded-full">
                                     {match.zone}
                                   </span>
                                 )}
                                 {hasResult ? (
                                   <div
                                     onClick={() => openScoreModal(match)}
-                                    className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-lg cursor-pointer hover:border-green-500"
+                                    className="flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-lg cursor-pointer hover:border-primary/60"
                                   >
-                                    <span className="text-2xl font-bold text-gray-900">
+                                    <span className="text-2xl font-semibold text-foreground">
                                       {match.homeScore}
                                     </span>
-                                    <span className="text-gray-400">-</span>
-                                    <span className="text-2xl font-bold text-gray-900">
+                                    <span className="text-muted-foreground">-</span>
+                                    <span className="text-2xl font-semibold text-foreground">
                                       {match.awayScore}
                                     </span>
                                   </div>
                                 ) : (
                                   <button
                                     onClick={() => openScoreModal(match)}
-                                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                    className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 transition-colors"
                                   >
                                     <Plus className="w-4 h-4" />
                                     Cargar
@@ -282,7 +282,7 @@ export function Fixture() {
                                     className="w-8 h-8 object-contain"
                                   />
                                 )}
-                                <span className="font-medium text-gray-900">
+                                <span className="font-medium text-foreground">
                                   {getTeamName(match.awayTeamId)}
                                 </span>
                               </div>
@@ -301,14 +301,14 @@ export function Fixture() {
 
       {/* Modal de Resultado */}
       {editingMatch && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Cargar Resultado</h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl border border-border shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-foreground mb-4">Cargar Resultado</h3>
 
             <div className="space-y-4">
               {/* Equipo Local */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   {getTeamName(editingMatch.homeTeamId)}
                 </label>
                 <input
@@ -317,13 +317,13 @@ export function Fixture() {
                   value={scoreForm.homeScore}
                   onChange={(e) => setScoreForm({ ...scoreForm, homeScore: e.target.value })}
                   placeholder="Goles"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl font-bold"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center text-2xl font-semibold"
                 />
               </div>
 
               {/* Equipo Visitante */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   {getTeamName(editingMatch.awayTeamId)}
                 </label>
                 <input
@@ -332,7 +332,7 @@ export function Fixture() {
                   value={scoreForm.awayScore}
                   onChange={(e) => setScoreForm({ ...scoreForm, awayScore: e.target.value })}
                   placeholder="Goles"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl font-bold"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center text-2xl font-semibold"
                 />
               </div>
             </div>
@@ -343,13 +343,13 @@ export function Fixture() {
                   setEditingMatch(null);
                   setScoreForm({ homeScore: '', awayScore: '' });
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={saveScore}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 <Save className="w-4 h-4" />
                 Guardar

@@ -128,13 +128,13 @@ export function Equipos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Equipos</h2>
-          <p className="text-gray-600">Gestiona los equipos de cada división</p>
+          <h2 className="text-2xl font-semibold text-foreground">Equipos</h2>
+          <p className="text-muted-foreground">Gestiona los equipos de cada división</p>
         </div>
         <button
           onClick={() => openModal()}
           disabled={divisions.length === 0}
-          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 transition-colors disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
           Nuevo Equipo
@@ -142,22 +142,22 @@ export function Equipos() {
       </div>
 
       {divisions.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No hay divisiones</h3>
-          <p className="text-gray-600">Primero debes crear divisiones antes de agregar equipos</p>
+        <div className="rounded-xl border border-border bg-card/80 p-12 text-center shadow-sm">
+          <Shield className="w-16 h-16 text-muted-foreground/60 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-foreground mb-2">No hay divisiones</h3>
+          <p className="text-muted-foreground">Primero debes crear divisiones antes de agregar equipos</p>
         </div>
       ) : (
         <>
           {/* Filtro por división */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="rounded-xl border border-border bg-card/80 p-4 shadow-sm">
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
               Filtrar por división
             </label>
             <select
               value={selectedDivision}
               onChange={(e) => setSelectedDivision(e.target.value)}
-              className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full md:w-64 px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="all">Todas las divisiones</option>
               {divisions.map(division => (
@@ -170,13 +170,13 @@ export function Equipos() {
 
           {/* Lista de equipos */}
           {filteredTeams.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No hay equipos</h3>
-              <p className="text-gray-600 mb-6">Comienza agregando tu primer equipo</p>
+            <div className="rounded-xl border border-border bg-card/80 p-12 text-center shadow-sm">
+              <Users className="w-16 h-16 text-muted-foreground/60 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No hay equipos</h3>
+              <p className="text-muted-foreground mb-6">Comienza agregando tu primer equipo</p>
               <button
                 onClick={() => openModal()}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                className="rounded-lg bg-primary px-6 py-2 text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 Agregar Equipo
               </button>
@@ -184,39 +184,39 @@ export function Equipos() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredTeams.map(team => (
-                <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
+                <div key={team.id} className="rounded-xl border border-border bg-card/80 p-6 shadow-sm">
                   <div className="flex items-start gap-4 mb-4">
                     {team.logoUrl ? (
                       <img
                         src={team.logoUrl}
                         alt={team.name}
-                        className="w-16 h-16 object-contain rounded-lg bg-gray-100"
+                        className="w-16 h-16 object-contain rounded-lg bg-accent/60"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Shield className="w-8 h-8 text-gray-400" />
+                      <div className="w-16 h-16 bg-accent/60 rounded-lg flex items-center justify-center">
+                        <Shield className="w-8 h-8 text-muted-foreground" />
                       </div>
                     )}
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-1">{team.name}</h3>
-                      <span className="text-sm text-gray-600">{getDivisionName(team.divisionId)}</span>
+                      <h3 className="text-lg font-semibold text-foreground mb-1">{team.name}</h3>
+                      <span className="text-sm text-muted-foreground">{getDivisionName(team.divisionId)}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-sm text-gray-600">
-                      <span className="font-semibold text-gray-900">{getPlayerCount(team.id)}</span> jugadores
+                    <div className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">{getPlayerCount(team.id)}</span> jugadores
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => openModal(team)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent/70 rounded-lg transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(team.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -231,15 +231,15 @@ export function Equipos() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl border border-border shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-foreground mb-4">
               {editingTeam ? 'Editar Equipo' : 'Nuevo Equipo'}
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   Nombre del Equipo
                 </label>
                 <input
@@ -247,18 +247,18 @@ export function Equipos() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ej: Boca Juniors"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
                   División
                 </label>
                 <select
                   value={formData.divisionId}
                   onChange={(e) => setFormData({ ...formData, divisionId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   {divisions.map(division => (
                     <option key={division.id} value={division.id}>
@@ -269,7 +269,7 @@ export function Equipos() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Escudo del Equipo
                 </label>
                 <div className="flex items-center gap-4">
@@ -277,10 +277,10 @@ export function Equipos() {
                     <img
                       src={formData.logoUrl}
                       alt="Preview"
-                      className="w-20 h-20 object-contain rounded-lg bg-gray-100"
+                      className="w-20 h-20 object-contain rounded-lg bg-accent/60"
                     />
                   )}
-                  <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors text-muted-foreground">
                     <Upload className="w-4 h-4" />
                     <span className="text-sm">Subir Imagen</span>
                     <input
@@ -297,13 +297,13 @@ export function Equipos() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={closeModal}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Guardar
               </button>
