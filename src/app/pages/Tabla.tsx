@@ -22,7 +22,13 @@ export function Tabla() {
 
   const divisionTeams = teams.filter(t => t.divisionId === selectedDivision);
   const divisionMatches = matches.filter(m => m.divisionId === selectedDivision);
-  const standings = calculateStandings(divisionTeams, divisionMatches);
+  const selectedDivisionData = divisions.find(d => d.id === selectedDivision);
+  const standings = calculateStandings(divisionTeams, divisionMatches, {
+    pointsWin: selectedDivisionData?.pointsWin,
+    pointsDraw: selectedDivisionData?.pointsDraw,
+    pointsLoss: selectedDivisionData?.pointsLoss,
+    tiebreakers: selectedDivisionData?.tiebreakers,
+  });
 
   const downloadAsImage = async () => {
     if (!tableRef.current) return;

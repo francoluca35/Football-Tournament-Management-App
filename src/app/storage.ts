@@ -1,6 +1,6 @@
 // Gestión de datos en localStorage (temporal, migrar a Supabase después)
 
-import type { Division, Team, Player, Match } from './types';
+import type { Division, Team, Player, Match, Tiebreaker } from './types';
 
 const STORAGE_KEYS = {
   DIVISIONS: 'tournament_divisions',
@@ -10,12 +10,28 @@ const STORAGE_KEYS = {
 };
 
 const isBrowser = () => typeof window !== 'undefined';
+const DEFAULT_TIEBREAKERS: Tiebreaker[] = ['points', 'goalDifference', 'goalsFor'];
+
+const normalizeDivision = (division: Division): Division => {
+  return {
+    ...division,
+    pointsWin: division.pointsWin ?? 3,
+    pointsDraw: division.pointsDraw ?? 1,
+    pointsLoss: division.pointsLoss ?? 0,
+    tiebreakers: division.tiebreakers && division.tiebreakers.length > 0
+      ? division.tiebreakers
+      : DEFAULT_TIEBREAKERS,
+    zonesEnabled: division.zonesEnabled ?? false,
+    zonesCount: division.zonesCount ?? 2,
+    roundRobinHomeAway: division.roundRobinHomeAway ?? false,
+  };
+};
 
 // Divisiones
 export const getDivisions = (): Division[] => {
   if (!isBrowser()) return [];
   const data = localStorage.getItem(STORAGE_KEYS.DIVISIONS);
-  return data ? JSON.parse(data) : [];
+  return data ? JSON.parse(data).map(normalizeDivision) : [];
 };
 
 export const saveDivisions = (divisions: Division[]) => {

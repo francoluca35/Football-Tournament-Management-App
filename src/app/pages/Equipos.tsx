@@ -31,6 +31,16 @@ export function Equipos() {
       return;
     }
 
+    const targetDivision = divisions.find(d => d.id === formData.divisionId);
+    const divisionTeamCount = teams.filter(t =>
+      t.divisionId === formData.divisionId && t.id !== editingTeam?.id
+    ).length;
+
+    if (targetDivision?.maxTeams && divisionTeamCount >= targetDivision.maxTeams) {
+      alert(`La división "${targetDivision.name}" ya alcanzó el límite de equipos.`);
+      return;
+    }
+
     let updatedTeams: Team[];
 
     if (editingTeam) {

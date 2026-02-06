@@ -3,13 +3,20 @@
 ## Funcionalidades Implementadas
 
 ### ✅ Gestión de Divisiones
+
 - Crear, editar y eliminar divisiones (Primera, Reserva, etc.)
 - Configurar tipo de competición:
   - **Torneo (Liga)**: Todos contra todos
   - **Copa**: Fase regular + eliminatorias (octavos, cuartos, semis, final)
 - Para copa: configurar cantidad de fechas y si las eliminatorias son ida y vuelta
+- Reglas configurables: puntos por victoria/empate/derrota
+- Criterios de desempate configurables (orden de criterios)
+- Límite opcional de equipos por división
+- Opción de dividir en zonas (cantidad configurable)
+- Opción de ida y vuelta en fase regular
 
 ### ✅ Gestión de Equipos
+
 - Agregar, editar y eliminar equipos
 - Asignar equipos a divisiones
 - **Subir escudo/logo de cada equipo** (se guarda en base64)
@@ -17,12 +24,14 @@
 - Contador de jugadores por equipo
 
 ### ✅ Gestión de Jugadores
+
 - Agregar, editar y eliminar jugadores
 - Datos: nombre, número, posición (Arquero, Defensor, Mediocampista, Delantero)
 - Filtrar por división y por equipo
 - Vista de tabla con toda la información
 
 ### ✅ Generación de Fixture
+
 - **Fixture aleatorio**: Genera automáticamente un calendario round-robin
 - Fixture manual: Opción de crear partidos personalizados (próxima mejora)
 - Visualización por fechas
@@ -30,6 +39,7 @@
 - Editar resultados ya cargados
 
 ### ✅ Tabla de Posiciones
+
 - Actualización automática al cargar resultados
 - Estadísticas completas: PJ, PG, PE, PP, GF, GC, DIF, PTS
 - Ordenamiento por puntos, diferencia de gol y goles a favor
@@ -37,18 +47,24 @@
 - **Descarga de resultados por fecha como JPG**
 
 ### ✅ Características Adicionales
+
 - Persistencia con localStorage (temporal, listo para migrar a Supabase)
 - Interfaz responsive con Tailwind CSS
-- Navegación con React Router
+- Navegación con Next.js App Router
 - TypeScript para seguridad de tipos
 - Iconos con Lucide React
 
 ## Estructura del Proyecto
 
-```
+```text
 /src/app/
-├── App.tsx                 # Entrada principal con RouterProvider
-├── routes.ts              # Configuración de rutas
+├── layout.tsx             # Layout raíz de Next
+├── page.tsx               # Home
+├── divisiones/page.tsx    # Página de divisiones
+├── equipos/page.tsx       # Página de equipos
+├── jugadores/page.tsx     # Página de jugadores
+├── fixture/page.tsx       # Página de fixture
+├── tabla/page.tsx         # Página de tabla
 ├── types.ts               # Tipos TypeScript
 ├── storage.ts             # Funciones de localStorage
 ├── utils.ts               # Utilidades (fixture, standings, etc.)

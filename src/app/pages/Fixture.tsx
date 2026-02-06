@@ -23,6 +23,7 @@ export function Fixture() {
 
   const divisionTeams = teams.filter(t => t.divisionId === selectedDivision);
   const divisionMatches = matches.filter(m => m.divisionId === selectedDivision);
+  const selectedDivisionData = divisions.find(d => d.id === selectedDivision);
   
   const matchdays = [...new Set(divisionMatches.map(m => m.matchday))].sort((a, b) => a - b);
 
@@ -39,7 +40,28 @@ export function Fixture() {
     }
 
     const shuffledTeams = shuffle(divisionTeams);
-    const newMatches = generateRoundRobinFixture(shuffledTeams, selectedDivision);
+    const useZones = Boolean(selectedDivisionData?.zonesEnabled && (selectedDivisionData.zonesCount ?? 0) > 1);
+    const zoneCount = Math.max(2, selectedDivisionData?.zonesCount ?? 2);
+    const doubleRoundRobin = Boolean(selectedDivisionData?.roundRobinHomeAway);
+
+    const splitIntoZones = (teamsToSplit: Team[], count: number) => {
+      const zones: Team[][] = Array.from({ length: count }, () => []);
+      teamsToSplit.forEach((team, index) => {
+        zones[index % count].push(team);
+      });
+      return zones;
+    };
+
+    const zoneMatches = useZones
+      ? splitIntoZones(shuffledTeams, zoneCount).flatMap((zoneTeams, index) =>
+          generateRoundRobinFixture(zoneTeams, selectedDivision, {
+            doubleRoundRobin,
+            zone: `Zona ${index + 1}`,
+          })
+        )
+      : generateRoundRobinFixture(shuffledTeams, selectedDivision, { doubleRoundRobin });
+
+    const newMatches = zoneMatches;
     
     const otherMatches = matches.filter(m => m.divisionId !== selectedDivision);
     const allMatches = [...otherMatches, ...newMatches];
@@ -185,7 +207,7 @@ export function Fixture() {
                   <div key={matchday} className="bg-white rounded-lg shadow-md overflow-hidden">
                     <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Fecha {matchday}</h3>
+                      <h3 className="text-lg font-bold text-gray-900">Fecha {matchday}</h3>
                         <p className="text-sm text-gray-600">
                           {playedMatches} de {matchdayMatches.length} partidos jugados
                         </p>
@@ -222,6 +244,11 @@ export function Fixture() {
 
                               {/* Resultado */}
                               <div className="flex items-center gap-3">
+                                {match.zone && (
+                                  <span className="text-xs font-semibold uppercase bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+                                    {match.zone}
+                                  </span>
+                                )}
                                 {hasResult ? (
                                   <div
                                     onClick={() => openScoreModal(match)}

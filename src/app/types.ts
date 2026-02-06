@@ -1,6 +1,7 @@
 // Tipos de datos para la aplicación de torneo de fútbol
 
 export type TournamentType = 'torneo' | 'copa';
+export type Tiebreaker = 'points' | 'goalDifference' | 'goalsFor' | 'goalsAgainst';
 
 export interface Division {
   id: string;
@@ -8,6 +9,14 @@ export interface Division {
   tournamentType: TournamentType;
   regularPhaseMatches?: number; // Para copa: cuántas fechas antes de eliminación
   twoLeggedKnockout?: boolean; // Para copa: ida y vuelta en eliminatorias
+  pointsWin?: number;
+  pointsDraw?: number;
+  pointsLoss?: number;
+  tiebreakers?: Tiebreaker[];
+  maxTeams?: number;
+  zonesEnabled?: boolean;
+  zonesCount?: number;
+  roundRobinHomeAway?: boolean;
 }
 
 export interface Team {
@@ -39,6 +48,7 @@ export interface Match {
   awayScore?: number;
   fixtureType: FixtureType;
   isFirstLeg?: boolean; // Para ida y vuelta
+  zone?: string;
 }
 
 export interface Standing {

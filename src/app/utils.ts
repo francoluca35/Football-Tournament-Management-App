@@ -1,6 +1,6 @@
 // Utilidades para generar fixtures y calcular tablas de posiciones
 
-import type { Match, Standing, Team } from './types';
+import type { Match, Standing, Team, Tiebreaker } from './types';
 
 // Genera un ID único simple
 export const generateId = (): string => {
@@ -20,7 +20,11 @@ export const shuffle = <T,>(array: T[]): T[] => {
 // Genera fixture round-robin (todos contra todos)
 export const generateRoundRobinFixture = (
   teams: Team[],
-  divisionId: string
+  divisionId: string,
+  options?: {
+    doubleRoundRobin?: boolean;
+    zone?: string;
+  }
 ): Match[] => {
   const matches: Match[] = [];
   const teamsCopy = [...teams];
@@ -46,6 +50,8 @@ export const generateRoundRobinFixture = (
           homeTeamId: home.id,
           awayTeamId: away.id,
           fixtureType: 'regular',
+          isFirstLeg: options?.doubleRoundRobin ? true : undefined,
+          zone: options?.zone,
         });
       }
     }
@@ -54,14 +60,38 @@ export const generateRoundRobinFixture = (
     teamsCopy.splice(1, 0, teamsCopy.pop()!);
   }
 
+  if (options?.doubleRoundRobin) {
+    const secondLegMatches = matches.map(match => ({
+      ...match,
+      id: generateId(),
+      matchday: match.matchday + numRounds,
+      homeTeamId: match.awayTeamId,
+      awayTeamId: match.homeTeamId,
+      isFirstLeg: false,
+    }));
+    return [...matches, ...secondLegMatches];
+  }
+
   return matches;
 };
 
 // Calcula la tabla de posiciones
 export const calculateStandings = (
   teams: Team[],
-  matches: Match[]
+  matches: Match[],
+  options?: {
+    pointsWin?: number;
+    pointsDraw?: number;
+    pointsLoss?: number;
+    tiebreakers?: Tiebreaker[];
+  }
 ): Standing[] => {
+  const pointsWin = options?.pointsWin ?? 3;
+  const pointsDraw = options?.pointsDraw ?? 1;
+  const pointsLoss = options?.pointsLoss ?? 0;
+  const tiebreakers = options?.tiebreakers && options.tiebreakers.length > 0
+    ? options.tiebreakers
+    : (['points', 'goalDifference', 'goalsFor'] as Tiebreaker[]);
   const standings: Record<string, Standing> = {};
 
   // Inicializar standings
@@ -96,17 +126,19 @@ export const calculateStandings = (
 
         if (match.homeScore > match.awayScore) {
           homeStanding.won++;
-          homeStanding.points += 3;
+          homeStanding.points += pointsWin;
           awayStanding.lost++;
+          awayStanding.points += pointsLoss;
         } else if (match.homeScore < match.awayScore) {
           awayStanding.won++;
-          awayStanding.points += 3;
+          awayStanding.points += pointsWin;
           homeStanding.lost++;
+          homeStanding.points += pointsLoss;
         } else {
           homeStanding.drawn++;
           awayStanding.drawn++;
-          homeStanding.points++;
-          awayStanding.points++;
+          homeStanding.points += pointsDraw;
+          awayStanding.points += pointsDraw;
         }
 
         homeStanding.goalDifference = homeStanding.goalsFor - homeStanding.goalsAgainst;
@@ -115,11 +147,27 @@ export const calculateStandings = (
     }
   });
 
-  // Ordenar por puntos, diferencia de gol, goles a favor
+  const compareBy = (a: Standing, b: Standing, criteria: Tiebreaker) => {
+    switch (criteria) {
+      case 'points':
+        return b.points - a.points;
+      case 'goalDifference':
+        return b.goalDifference - a.goalDifference;
+      case 'goalsFor':
+        return b.goalsFor - a.goalsFor;
+      case 'goalsAgainst':
+        return a.goalsAgainst - b.goalsAgainst;
+      default:
+        return 0;
+    }
+  };
+
   return Object.values(standings).sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    for (const criteria of tiebreakers) {
+      const diff = compareBy(a, b, criteria);
+      if (diff !== 0) return diff;
+    }
+    return 0;
   });
 };
 
