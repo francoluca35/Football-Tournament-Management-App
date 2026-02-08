@@ -10,8 +10,9 @@ import {
   saveTournamentSettings,
   getMovementsLog,
   saveMovementsLog,
+  getCompetitions,
 } from '../storage';
-import type { Division, Match, Team, TournamentSettings } from '../types';
+import type { Division, Match, Team, TournamentSettings, Competition } from '../types';
 
 type MovementDetail = {
   upper: Division;
@@ -23,12 +24,14 @@ type MovementDetail = {
 export function Configuraciones() {
   const [settings, setSettings] = useState<TournamentSettings>(getTournamentSettings());
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [movementLog, setMovementLog] = useState<Record<string, string>>(getMovementsLog());
 
   useEffect(() => {
     setDivisions(getDivisions());
+    setCompetitions(getCompetitions());
     setTeams(getTeams());
     setMatches(getMatches());
     setMovementLog(getMovementsLog());
@@ -36,10 +39,17 @@ export function Configuraciones() {
   }, []);
 
   const orderedDivisions = useMemo(() => {
-    return settings.applyToCups
-      ? divisions
-      : divisions.filter(division => division.tournamentType === 'torneo');
-  }, [divisions, settings.applyToCups]);
+    if (settings.applyToCups) {
+      return divisions.filter(division =>
+        competitions.some(competition => competition.divisionId === division.id)
+      );
+    }
+    return divisions.filter(division =>
+      competitions.some(competition =>
+        competition.divisionId === division.id && competition.tournamentType === 'torneo'
+      )
+    );
+  }, [divisions, competitions, settings.applyToCups]);
 
   const normalizeSettings = (next: TournamentSettings) => ({
     promotionsPerDivision: Math.max(0, Math.floor(next.promotionsPerDivision)),
@@ -47,24 +57,32 @@ export function Configuraciones() {
     applyToCups: Boolean(next.applyToCups),
   });
 
-  const isDivisionFinished = (division: Division, divisionMatches: Match[]) => {
-    if (division.endDate) {
-      const endDate = new Date(`${division.endDate}T23:59:59`);
+  const getPrimaryCompetition = (divisionId: string) => {
+    const divisionCompetitions = competitions.filter(c => c.divisionId === divisionId);
+    if (settings.applyToCups) {
+      return divisionCompetitions[0];
+    }
+    return divisionCompetitions.find(c => c.tournamentType === 'torneo');
+  };
+
+  const isDivisionFinished = (competition: Competition | undefined, competitionMatches: Match[]) => {
+    if (competition?.endDate) {
+      const endDate = new Date(`${competition.endDate}T23:59:59`);
       if (!Number.isNaN(endDate.getTime()) && new Date() > endDate) {
         return true;
       }
     }
-    if (divisionMatches.length === 0) return false;
-    return divisionMatches.every(match =>
+    if (competitionMatches.length === 0) return false;
+    return competitionMatches.every(match =>
       match.status === 'completed' ||
       (match.homeScore !== undefined && match.awayScore !== undefined)
     );
   };
 
-  const getDivisionFinishKey = (division: Division, divisionMatches: Match[]) => {
-    if (!isDivisionFinished(division, divisionMatches)) return '';
-    if (division.endDate) return division.endDate;
-    return `matches-complete-${divisionMatches.length}`;
+  const getDivisionFinishKey = (competition: Competition | undefined, competitionMatches: Match[]) => {
+    if (!isDivisionFinished(competition, competitionMatches)) return '';
+    if (competition?.endDate) return competition.endDate;
+    return `matches-complete-${competitionMatches.length}`;
   };
 
   const handleSaveSettings = () => {
@@ -91,10 +109,14 @@ export function Configuraciones() {
 
     const matchesByDivision = new Map<string, Match[]>();
     divisions.forEach(division => {
-      matchesByDivision.set(
-        division.id,
-        matches.filter(match => match.divisionId === division.id)
+      const competition = getPrimaryCompetition(division.id);
+      const divisionMatches = matches.filter(match =>
+        match.divisionId === division.id &&
+        (competition?.id
+          ? (match.competitionId ? match.competitionId === competition.id : true)
+          : match.competitionId === undefined)
       );
+      matchesByDivision.set(division.id, divisionMatches);
     });
 
     const moves: Record<string, string> = {};
@@ -104,15 +126,17 @@ export function Configuraciones() {
     for (let i = 0; i < orderedDivisions.length - 1; i += 1) {
       const upper = orderedDivisions[i];
       const lower = orderedDivisions[i + 1];
+      const upperCompetition = getPrimaryCompetition(upper.id);
+      const lowerCompetition = getPrimaryCompetition(lower.id);
       const upperMatches = matchesByDivision.get(upper.id) ?? [];
       const lowerMatches = matchesByDivision.get(lower.id) ?? [];
 
-      if (!isDivisionFinished(upper, upperMatches) || !isDivisionFinished(lower, lowerMatches)) {
+      if (!isDivisionFinished(upperCompetition, upperMatches) || !isDivisionFinished(lowerCompetition, lowerMatches)) {
         continue;
       }
 
-      const upperFinishKey = getDivisionFinishKey(upper, upperMatches);
-      const lowerFinishKey = getDivisionFinishKey(lower, lowerMatches);
+      const upperFinishKey = getDivisionFinishKey(upperCompetition, upperMatches);
+      const lowerFinishKey = getDivisionFinishKey(lowerCompetition, lowerMatches);
       if (
         (upperFinishKey && movementLog[upper.id] === upperFinishKey) ||
         (lowerFinishKey && movementLog[lower.id] === lowerFinishKey)
@@ -127,16 +151,16 @@ export function Configuraciones() {
       }
 
       const upperStandings = calculateStandings(upperTeams, upperMatches, {
-        pointsWin: upper.pointsWin,
-        pointsDraw: upper.pointsDraw,
-        pointsLoss: upper.pointsLoss,
-        tiebreakers: upper.tiebreakers,
+        pointsWin: upperCompetition?.pointsWin,
+        pointsDraw: upperCompetition?.pointsDraw,
+        pointsLoss: upperCompetition?.pointsLoss,
+        tiebreakers: upperCompetition?.tiebreakers,
       });
       const lowerStandings = calculateStandings(lowerTeams, lowerMatches, {
-        pointsWin: lower.pointsWin,
-        pointsDraw: lower.pointsDraw,
-        pointsLoss: lower.pointsLoss,
-        tiebreakers: lower.tiebreakers,
+        pointsWin: lowerCompetition?.pointsWin,
+        pointsDraw: lowerCompetition?.pointsDraw,
+        pointsLoss: lowerCompetition?.pointsLoss,
+        tiebreakers: lowerCompetition?.tiebreakers,
       });
 
       const relegationsCount = Math.min(normalized.relegationsPerDivision, upperStandings.length);

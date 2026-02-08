@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Shuffle, Plus, Edit2, Trash2, Save } from 'lucide-react';
-import { getDivisions, getTeams, getMatches, saveMatches, getPlayers } from '../storage';
-import type { Match, Team, GoalEvent, CardEvent, SubstitutionEvent, AssistEvent } from '../types';
-import { generateId, generateRoundRobinFixture, shuffle } from '../utils';
+import { Calendar, Shuffle, Plus, Edit2, Trash2, Save, Trophy, Download } from 'lucide-react';
+import { getDivisions, getTeams, getMatches, saveMatches, getPlayers, getCompetitions } from '../storage';
+import type { Match, Team, GoalEvent, CardEvent, SubstitutionEvent, AssistEvent, Competition } from '../types';
+import { generateId, generateRoundRobinFixture, shuffle, calculateStandings } from '../utils';
+import html2canvas from 'html2canvas';
 
 export function Fixture() {
   const [divisions, setDivisions] = useState(getDivisions());
+  const [competitions, setCompetitions] = useState<Competition[]>(getCompetitions());
   const [teams, setTeams] = useState(getTeams());
   const [players, setPlayers] = useState(getPlayers());
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedDivision, setSelectedDivision] = useState<string>('');
+  const [selectedCompetition, setSelectedCompetition] = useState<string>('');
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'suspended'>('all');
   const [scoreForm, setScoreForm] = useState({
     homeScore: '',
     awayScore: '',
+    penaltiesWinnerTeamId: '',
+    penaltiesHomeScore: '',
+    penaltiesAwayScore: '',
     goals: [] as GoalEvent[],
     assists: [] as AssistEvent[],
     cards: [] as CardEvent[],
@@ -46,9 +52,11 @@ export function Fixture() {
       sunday: true,
     },
   });
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     setDivisions(getDivisions());
+    setCompetitions(getCompetitions());
     setTeams(getTeams());
     setPlayers(getPlayers());
     setMatches(getMatches());
@@ -57,16 +65,227 @@ export function Fixture() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!selectedDivision) return;
+    const divisionCompetitions = competitions.filter(c => c.divisionId === selectedDivision);
+    if (divisionCompetitions.length > 0) {
+      setSelectedCompetition(prev =>
+        divisionCompetitions.some(c => c.id === prev) ? prev : divisionCompetitions[0].id
+      );
+    } else {
+      setSelectedCompetition('');
+    }
+  }, [selectedDivision, competitions]);
+
+  // (moved) knockout generation effect lives after derived competitionMatches
+
   const divisionTeams = teams.filter(t => t.divisionId === selectedDivision);
-  const divisionMatches = matches.filter(m => m.divisionId === selectedDivision);
-  const selectedDivisionData = divisions.find(d => d.id === selectedDivision);
+  const divisionCompetitions = competitions.filter(c => c.divisionId === selectedDivision);
+  const selectedCompetitionData = competitions.find(c => c.id === selectedCompetition);
+  const competitionMatches = matches.filter(m =>
+    m.divisionId === selectedDivision &&
+    (m.competitionId
+      ? m.competitionId === selectedCompetition
+      : divisionCompetitions.length <= 1)
+  );
+  const divisionMatches = competitionMatches;
+
+  useEffect(() => {
+    if (!selectedCompetitionData || selectedCompetitionData.tournamentType !== 'copa') {
+      return;
+    }
+    if (!selectedCompetition) return;
+
+    const groupMatches = competitionMatches.filter(match => match.fixtureType === 'regular' && match.zone);
+    const knockoutMatches = competitionMatches.filter(match => match.fixtureType !== 'regular');
+    const groupStageComplete = groupMatches.length > 0
+      && groupMatches.every(match => match.homeScore !== undefined && match.awayScore !== undefined);
+
+    const zoneMap = new Map<string, Set<string>>();
+    groupMatches.forEach(match => {
+      if (!match.zone) return;
+      if (!zoneMap.has(match.zone)) {
+        zoneMap.set(match.zone, new Set());
+      }
+      const set = zoneMap.get(match.zone);
+      set?.add(match.homeTeamId);
+      set?.add(match.awayTeamId);
+    });
+
+    const groupStandings = Array.from(zoneMap.entries()).map(([zone, teamIds]) => {
+      const groupTeams = Array.from(teamIds)
+        .map(id => teams.find(t => t.id === id))
+        .filter(Boolean)
+        .map(team => team as Team);
+      const zoneMatches = groupMatches.filter(match => match.zone === zone);
+      const standings = calculateStandings(groupTeams, zoneMatches, {
+        pointsWin: selectedCompetitionData.pointsWin,
+        pointsDraw: selectedCompetitionData.pointsDraw,
+        pointsLoss: selectedCompetitionData.pointsLoss,
+        tiebreakers: selectedCompetitionData.tiebreakers,
+      });
+      return { zone, standings };
+    }).sort((a, b) => a.zone.localeCompare(b.zone));
+
+    if (groupStageComplete && knockoutMatches.length === 0 && groupStandings.length > 0) {
+      const pairs = buildKnockoutPairsFromGroups(groupStandings)
+        .filter(pair => pair[0].teamId && pair[1].teamId)
+        .map(pair => ({ homeTeamId: pair[0].teamId as string, awayTeamId: pair[1].teamId as string }));
+
+      if (pairs.length > 0) {
+        const fixtureType = getRoundLabel(pairs.length);
+        const newMatches = createKnockoutMatches(pairs, fixtureType);
+        const updated = [...matches, ...newMatches];
+        saveMatches(updated);
+        setMatches(updated);
+        return;
+      }
+    }
+
+    const roundsOrder: Match['fixtureType'][] = [
+      'round-of-64',
+      'round-of-32',
+      'round-of-16',
+      'quarter-final',
+      'semi-final',
+      'final',
+    ];
+    for (let i = 0; i < roundsOrder.length; i += 1) {
+      const round = roundsOrder[i];
+      const roundMatches = knockoutMatches.filter(match => match.fixtureType === round);
+      if (roundMatches.length === 0) continue;
+
+      const allPlayed = roundMatches.every(match => match.homeScore !== undefined && match.awayScore !== undefined);
+      if (!allPlayed) break;
+
+      if (round === 'final') {
+        break;
+      }
+
+      const nextRound = roundsOrder[i + 1];
+      const nextRoundExists = knockoutMatches.some(match => match.fixtureType === nextRound);
+      if (nextRoundExists) continue;
+
+      const winners = roundMatches
+        .map(match => resolveMatchWinner(match))
+        .filter((id): id is string => Boolean(id));
+
+      if (winners.length === roundMatches.length) {
+        const nextPairs: Array<{ homeTeamId: string; awayTeamId: string }> = [];
+        for (let j = 0; j < winners.length; j += 2) {
+          if (winners[j] && winners[j + 1]) {
+            nextPairs.push({ homeTeamId: winners[j], awayTeamId: winners[j + 1] });
+          }
+        }
+        if (nextPairs.length > 0) {
+          const newMatches = createKnockoutMatches(nextPairs, nextRound);
+          const updated = [...matches, ...newMatches];
+          saveMatches(updated);
+          setMatches(updated);
+        }
+      }
+      break;
+    }
+  }, [selectedCompetition, selectedCompetitionData, matches, teams, competitionMatches]);
   
-  const matchdays = [...new Set(divisionMatches.map(m => m.matchday))].sort((a, b) => a - b);
+  const groupMatches = divisionMatches.filter(match => match.fixtureType === 'regular' && match.zone);
+  const groupStageComplete = groupMatches.length > 0
+    && groupMatches.every(match => match.homeScore !== undefined && match.awayScore !== undefined);
+
+  const matchdays = (() => {
+    const unique = [...new Set(divisionMatches.map(m => m.matchday))];
+    const sorted = unique.sort((a, b) => a - b);
+
+    if (!selectedCompetitionData || selectedCompetitionData.tournamentType !== 'copa') {
+      return sorted;
+    }
+
+    if (!groupStageComplete) {
+      return sorted;
+    }
+
+    const roundRank: Record<Match['fixtureType'], number> = {
+      'round-of-64': 1,
+      'round-of-32': 2,
+      'round-of-16': 3,
+      'quarter-final': 4,
+      'semi-final': 5,
+      'final': 6,
+      'regular': 0,
+    };
+
+    const getMatchdayInfo = (matchday: number) => {
+      const matchesInDay = divisionMatches.filter(match => match.matchday === matchday);
+      const allNonRegular = matchesInDay.length > 0 && matchesInDay.every(match => match.fixtureType !== 'regular');
+      const sameType = allNonRegular && matchesInDay.every(match => match.fixtureType === matchesInDay[0].fixtureType);
+      const roundType = sameType ? matchesInDay[0].fixtureType : 'regular';
+      const isCompleted = matchesInDay.every(match => match.homeScore !== undefined && match.awayScore !== undefined);
+      return {
+        matchday,
+        isKnockout: allNonRegular && sameType,
+        isCompleted,
+        rank: roundRank[roundType],
+      };
+    };
+
+    const info = sorted.map(getMatchdayInfo);
+    return info
+      .sort((a, b) => {
+        const bucket = (item: typeof a) => {
+          if (item.isKnockout && !item.isCompleted) return 0; // próximos
+          if (item.isKnockout && item.isCompleted) return 1; // jugados
+          return 2; // grupos
+        };
+        const bucketDiff = bucket(a) - bucket(b);
+        if (bucketDiff !== 0) return bucketDiff;
+
+        if (bucket(a) === 2) {
+          return a.matchday - b.matchday;
+        }
+
+        const rankDiff = b.rank - a.rank;
+        if (rankDiff !== 0) return rankDiff;
+        return a.matchday - b.matchday;
+      })
+      .map(item => item.matchday);
+  })();
 
   const getMatchStatus = (match: Match) => {
     if (match.status === 'suspended') return 'suspended';
     if (match.homeScore !== undefined && match.awayScore !== undefined) return 'completed';
     return 'pending';
+  };
+
+  const getRoundTitle = (fixtureType: Match['fixtureType']) => {
+    switch (fixtureType) {
+      case 'round-of-64':
+        return '32vo de final';
+      case 'round-of-32':
+        return '16vo de final';
+      case 'round-of-16':
+        return '8vo de final';
+      case 'quarter-final':
+        return '4to final';
+      case 'semi-final':
+        return 'Semifinal';
+      case 'final':
+        return 'Final';
+      default:
+        return 'Fecha';
+    }
+  };
+
+  const getMatchdayTitle = (matchesInMatchday: Match[], matchday: number) => {
+    if (matchesInMatchday.length === 0) return `Fecha ${matchday}`;
+    const nonRegular = matchesInMatchday.filter(match => match.fixtureType !== 'regular');
+    if (nonRegular.length === matchesInMatchday.length) {
+      const roundType = nonRegular[0].fixtureType;
+      const sameRound = nonRegular.every(match => match.fixtureType === roundType);
+      if (sameRound) {
+        return getRoundTitle(roundType);
+      }
+    }
+    return `Fecha ${matchday}`;
   };
 
   const formatDateLabel = (value?: string) => {
@@ -80,6 +299,105 @@ export function Fixture() {
     if (scheduleConfig.days.saturday) weekdays.push(6);
     if (scheduleConfig.days.sunday) weekdays.push(0);
     return weekdays;
+  };
+
+  const getGroupLabel = (index: number) => {
+    if (index >= 0 && index < 26) {
+      return `Grupo ${String.fromCharCode(65 + index)}`;
+    }
+    return `Grupo ${index + 1}`;
+  };
+
+  const splitIntoZones = (teamsToSplit: Team[], count: number) => {
+    const zones: Team[][] = Array.from({ length: count }, () => []);
+    teamsToSplit.forEach((team, index) => {
+      zones[index % count].push(team);
+    });
+    return zones;
+  };
+
+  const resolveMatchWinner = (match: Match) => {
+    if (match.homeScore === undefined || match.awayScore === undefined) return null;
+    if (match.homeScore === match.awayScore) {
+      return match.penaltiesWinnerTeamId ?? null;
+    }
+    return match.homeScore > match.awayScore ? match.homeTeamId : match.awayTeamId;
+  };
+
+  const getPreferredFinalMatch = (matchesList: Match[]) => {
+    const finals = matchesList.filter(match => match.fixtureType === 'final');
+    if (finals.length === 0) return null;
+    return [...finals].sort((a, b) => {
+      const aHasPen = a.penaltiesWinnerTeamId ? 1 : 0;
+      const bHasPen = b.penaltiesWinnerTeamId ? 1 : 0;
+      if (aHasPen !== bHasPen) return bHasPen - aHasPen;
+      const aDecided = a.homeScore !== undefined && a.awayScore !== undefined && a.homeScore !== a.awayScore ? 1 : 0;
+      const bDecided = b.homeScore !== undefined && b.awayScore !== undefined && b.homeScore !== b.awayScore ? 1 : 0;
+      if (aDecided !== bDecided) return bDecided - aDecided;
+      const aSecondLeg = a.isFirstLeg === false ? 1 : 0;
+      const bSecondLeg = b.isFirstLeg === false ? 1 : 0;
+      if (aSecondLeg !== bSecondLeg) return bSecondLeg - aSecondLeg;
+      return (b.matchday ?? 0) - (a.matchday ?? 0);
+    })[0];
+  };
+
+  const finalWinner = (() => {
+    if (!selectedCompetitionData || selectedCompetitionData.tournamentType !== 'copa') return null;
+    const finalMatch = getPreferredFinalMatch(competitionMatches);
+    if (!finalMatch || finalMatch.homeScore === undefined || finalMatch.awayScore === undefined) return null;
+    if (finalMatch.homeScore === finalMatch.awayScore) {
+      if (!finalMatch.penaltiesWinnerTeamId) return null;
+      const winnerName = teams.find(t => t.id === finalMatch.penaltiesWinnerTeamId)?.name ?? 'Campeón';
+      return { teamId: finalMatch.penaltiesWinnerTeamId, teamName: winnerName };
+    }
+    const winnerId = finalMatch.homeScore > finalMatch.awayScore ? finalMatch.homeTeamId : finalMatch.awayTeamId;
+    const winnerName = teams.find(t => t.id === winnerId)?.name ?? 'Campeón';
+    return { teamId: winnerId, teamName: winnerName };
+  })();
+
+  const buildKnockoutPairsFromGroups = (groupStandings: Array<{ zone: string; standings: ReturnType<typeof calculateStandings> }>) => {
+    const qualifiers = groupStandings.flatMap(group => {
+      const first = group.standings[0];
+      const second = group.standings[1];
+      return [
+        first ? { label: `1ro ${group.zone}`, teamId: first.teamId } : { label: `1ro ${group.zone}`, teamId: null },
+        second ? { label: `2do ${group.zone}`, teamId: second.teamId } : { label: `2do ${group.zone}`, teamId: null },
+      ];
+    });
+
+    const ordered = qualifiers.slice().sort((a, b) => a.label.localeCompare(b.label));
+    const pairs: Array<[typeof qualifiers[number], typeof qualifiers[number]]> = [];
+    for (let i = 0; i < ordered.length; i += 4) {
+      const one = ordered[i];
+      const two = ordered[i + 1];
+      const three = ordered[i + 2];
+      const four = ordered[i + 3];
+      if (one && four) pairs.push([one, four]);
+      if (two && three) pairs.push([two, three]);
+    }
+    return pairs;
+  };
+
+  const getRoundLabel = (matchCount: number) => {
+    if (matchCount >= 32) return 'round-of-64' as const;
+    if (matchCount === 16) return 'round-of-32' as const;
+    if (matchCount === 8) return 'round-of-16' as const;
+    if (matchCount === 4) return 'quarter-final' as const;
+    if (matchCount === 2) return 'semi-final' as const;
+    return 'final' as const;
+  };
+
+  const createKnockoutMatches = (pairs: Array<{ homeTeamId: string; awayTeamId: string }>, fixtureType: Match['fixtureType']) => {
+    const nextMatchday = competitionMatches.reduce((max, match) => Math.max(max, match.matchday), 0) + 1;
+    return pairs.map(pair => ({
+      id: generateId(),
+      divisionId: selectedDivision,
+      competitionId: selectedCompetition || undefined,
+      matchday: nextMatchday,
+      homeTeamId: pair.homeTeamId,
+      awayTeamId: pair.awayTeamId,
+      fixtureType,
+    }));
   };
 
   const getDatesBetween = (start: string, end: string, allowedDays: number[]) => {
@@ -101,8 +419,8 @@ export function Fixture() {
   };
 
   const buildDatedMatches = (matchesToUpdate: Match[]) => {
-    const startDate = selectedDivisionData?.startDate;
-    const endDate = selectedDivisionData?.endDate;
+    const startDate = selectedCompetitionData?.startDate;
+    const endDate = selectedCompetitionData?.endDate;
     const allowedDays = getAllowedWeekdays();
 
     if (!startDate || !endDate) return matchesToUpdate;
@@ -124,8 +442,8 @@ export function Fixture() {
   };
 
   const assignDatesToMatches = (matchesToUpdate: Match[]) => {
-    const startDate = selectedDivisionData?.startDate;
-    const endDate = selectedDivisionData?.endDate;
+    const startDate = selectedCompetitionData?.startDate;
+    const endDate = selectedCompetitionData?.endDate;
     const allowedDays = getAllowedWeekdays();
 
     if (!startDate || !endDate) {
@@ -156,6 +474,10 @@ export function Fixture() {
   };
 
   const generateRandomFixture = () => {
+    if (!selectedCompetitionData) {
+      alert('Seleccioná un torneo para generar el fixture');
+      return;
+    }
     if (divisionTeams.length < 2) {
       alert('Necesitas al menos 2 equipos para generar un fixture');
       return;
@@ -168,30 +490,40 @@ export function Fixture() {
     }
 
     const shuffledTeams = shuffle(divisionTeams);
-    const useZones = Boolean(selectedDivisionData?.zonesEnabled && (selectedDivisionData.zonesCount ?? 0) > 1);
-    const zoneCount = Math.max(2, selectedDivisionData?.zonesCount ?? 2);
-    const doubleRoundRobin = Boolean(selectedDivisionData?.roundRobinHomeAway);
-
-    const splitIntoZones = (teamsToSplit: Team[], count: number) => {
-      const zones: Team[][] = Array.from({ length: count }, () => []);
-      teamsToSplit.forEach((team, index) => {
-        zones[index % count].push(team);
-      });
-      return zones;
-    };
+    const useZones = Boolean(
+      selectedCompetitionData?.tournamentType === 'copa'
+        || (selectedCompetitionData?.zonesEnabled && (selectedCompetitionData.zonesCount ?? 0) > 1)
+    );
+    const zoneCount = selectedCompetitionData?.tournamentType === 'copa'
+      ? Math.max(2, selectedCompetitionData.groupCount ?? selectedCompetitionData.zonesCount ?? 2)
+      : Math.max(2, selectedCompetitionData?.zonesCount ?? 2);
+    const doubleRoundRobin = Boolean(
+      selectedCompetitionData?.tournamentType === 'torneo' && selectedCompetitionData.roundRobinHomeAway
+    );
 
     const zoneMatches = useZones
       ? splitIntoZones(shuffledTeams, zoneCount).flatMap((zoneTeams, index) =>
           generateRoundRobinFixture(zoneTeams, selectedDivision, {
             doubleRoundRobin,
-            zone: `Zona ${index + 1}`,
+            zone: selectedCompetitionData?.tournamentType === 'copa'
+              ? getGroupLabel(index)
+              : `Zona ${index + 1}`,
+            competitionId: selectedCompetition,
           })
         )
-      : generateRoundRobinFixture(shuffledTeams, selectedDivision, { doubleRoundRobin });
+      : generateRoundRobinFixture(shuffledTeams, selectedDivision, {
+          doubleRoundRobin,
+          competitionId: selectedCompetition,
+        });
 
     const newMatches = buildDatedMatches(zoneMatches);
     
-    const otherMatches = matches.filter(m => m.divisionId !== selectedDivision);
+    const otherMatches = matches.filter(m =>
+      m.divisionId !== selectedDivision ||
+      (selectedCompetition
+        ? m.competitionId !== selectedCompetition
+        : m.competitionId !== undefined)
+    );
     const allMatches = [...otherMatches, ...newMatches];
     
     saveMatches(allMatches);
@@ -213,7 +545,7 @@ export function Fixture() {
         homeTeamId: divisionTeams[0]?.id || '',
         awayTeamId: divisionTeams[1]?.id || '',
         matchday: matchdays.length > 0 ? matchdays[matchdays.length - 1] + 1 : 1,
-        date: selectedDivisionData?.startDate ?? '',
+        date: selectedCompetitionData?.startDate ?? '',
       });
     }
     setIsMatchModalOpen(true);
@@ -237,10 +569,15 @@ export function Fixture() {
       alert('Seleccioná una división.');
       return;
     }
+    if (!selectedCompetition) {
+      alert('Seleccioná un torneo.');
+      return;
+    }
 
     const newMatch: Match = {
       id: editingFixtureMatch?.id ?? generateId(),
       divisionId: selectedDivision,
+      competitionId: selectedCompetition || undefined,
       matchday: Number(matchForm.matchday) || 1,
       date: matchForm.date || undefined,
       homeTeamId: matchForm.homeTeamId,
@@ -260,11 +597,16 @@ export function Fixture() {
   };
 
   const deleteFixture = () => {
-    if (!confirm('¿Estás seguro de eliminar todo el fixture de esta división?')) {
+    if (!confirm('¿Estás seguro de eliminar todo el fixture de este torneo?')) {
       return;
     }
 
-    const otherMatches = matches.filter(m => m.divisionId !== selectedDivision);
+    const otherMatches = matches.filter(m =>
+      m.divisionId !== selectedDivision ||
+      (selectedCompetition
+        ? m.competitionId !== selectedCompetition
+        : m.competitionId !== undefined)
+    );
     saveMatches(otherMatches);
     setMatches(otherMatches);
   };
@@ -280,12 +622,50 @@ export function Fixture() {
       return;
     }
 
+    const isKnockout = editingMatch.fixtureType !== 'regular';
+    const isSecondLeg = !editingMatch.isFirstLeg;
+    const isPenaltyRequired = isKnockout && isSecondLeg && homeScore === awayScore;
+
+    let penaltiesWinnerTeamId: string | undefined;
+    let penaltiesHomeScore: number | undefined;
+    let penaltiesAwayScore: number | undefined;
+
+    if (isPenaltyRequired) {
+      const homePen = Number(scoreForm.penaltiesHomeScore);
+      const awayPen = Number(scoreForm.penaltiesAwayScore);
+      const winnerId = scoreForm.penaltiesWinnerTeamId;
+
+      if (!winnerId || (winnerId !== editingMatch.homeTeamId && winnerId !== editingMatch.awayTeamId)) {
+        alert('Seleccioná quién ganó en penales.');
+        return;
+      }
+      if (!Number.isFinite(homePen) || !Number.isFinite(awayPen) || homePen < 0 || awayPen < 0 || homePen > 5 || awayPen > 5) {
+        alert('Los penales deben estar entre 0 y 5.');
+        return;
+      }
+      if (homePen === awayPen) {
+        alert('Los penales no pueden terminar empatados.');
+        return;
+      }
+      if ((winnerId === editingMatch.homeTeamId && homePen <= awayPen) || (winnerId === editingMatch.awayTeamId && awayPen <= homePen)) {
+        alert('El ganador debe tener más penales convertidos.');
+        return;
+      }
+
+      penaltiesWinnerTeamId = winnerId;
+      penaltiesHomeScore = homePen;
+      penaltiesAwayScore = awayPen;
+    }
+
     const updatedMatches = matches.map(m =>
       m.id === editingMatch.id
         ? {
             ...m,
             homeScore,
             awayScore,
+            penaltiesWinnerTeamId,
+            penaltiesHomeScore,
+            penaltiesAwayScore,
             goals: scoreForm.goals,
             assists: scoreForm.assists,
             cards: scoreForm.cards,
@@ -298,7 +678,17 @@ export function Fixture() {
     saveMatches(updatedMatches);
     setMatches(updatedMatches);
     setEditingMatch(null);
-    setScoreForm({ homeScore: '', awayScore: '', goals: [], assists: [], cards: [], substitutions: [] });
+    setScoreForm({
+      homeScore: '',
+      awayScore: '',
+      penaltiesWinnerTeamId: '',
+      penaltiesHomeScore: '',
+      penaltiesAwayScore: '',
+      goals: [],
+      assists: [],
+      cards: [],
+      substitutions: [],
+    });
   };
 
   const openScoreModal = (match: Match) => {
@@ -306,6 +696,9 @@ export function Fixture() {
     setScoreForm({
       homeScore: match.homeScore?.toString() || '',
       awayScore: match.awayScore?.toString() || '',
+      penaltiesWinnerTeamId: match.penaltiesWinnerTeamId ?? '',
+      penaltiesHomeScore: match.penaltiesHomeScore?.toString() ?? '',
+      penaltiesAwayScore: match.penaltiesAwayScore?.toString() ?? '',
       goals: match.goals ?? [],
       assists: match.assists ?? [],
       cards: match.cards ?? [],
@@ -339,6 +732,19 @@ export function Fixture() {
     return teams.find(t => t.id === teamId)?.logoUrl;
   };
 
+  const getScoreLabel = (match: Match, side: 'home' | 'away') => {
+    const score = side === 'home' ? match.homeScore : match.awayScore;
+    if (score === undefined) return '-';
+    const penScore = side === 'home' ? match.penaltiesHomeScore : match.penaltiesAwayScore;
+    const penWinnerId = match.penaltiesWinnerTeamId;
+    const teamId = side === 'home' ? match.homeTeamId : match.awayTeamId;
+    if (penWinnerId && penScore !== undefined) {
+      const winnerTag = penWinnerId === teamId ? ' G' : '';
+      return `${score} (${penScore}${winnerTag})`;
+    }
+    return `${score}`;
+  };
+
   const groupedGoalsByPlayer = () => {
     return scoreForm.goals.reduce<Record<string, { playerId: string; teamId: string; count: number; goalIds: string[] }>>((acc, goal) => {
       if (!acc[goal.playerId]) {
@@ -364,6 +770,105 @@ export function Fixture() {
     const matchesStatus = statusFilter === 'all' || statusFilter === status;
     return matchesSearch && matchesStatus;
   });
+
+  const groupedTeamsByZone = (() => {
+    if (!selectedCompetitionData || selectedCompetitionData.tournamentType !== 'copa') {
+      return [];
+    }
+
+    const map = new Map<string, Set<string>>();
+    divisionMatches.forEach(match => {
+      if (!match.zone) return;
+      if (!map.has(match.zone)) {
+        map.set(match.zone, new Set());
+      }
+      const set = map.get(match.zone);
+      set?.add(match.homeTeamId);
+      set?.add(match.awayTeamId);
+    });
+
+    if (map.size === 0 && divisionTeams.length > 0) {
+      const count = Math.max(
+        2,
+        selectedCompetitionData.groupCount ?? selectedCompetitionData.zonesCount ?? 2
+      );
+      const sortedTeams = [...divisionTeams].sort((a, b) => a.name.localeCompare(b.name));
+      return splitIntoZones(sortedTeams, count).map((zoneTeams, index) => ({
+        zone: getGroupLabel(index),
+        teams: zoneTeams,
+      }));
+    }
+
+    const entries = Array.from(map.entries()).map(([zone, teamIds]) => {
+      const teamsInZone = Array.from(teamIds)
+        .map(id => teams.find(t => t.id === id))
+        .filter(Boolean)
+        .map(team => team as Team)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return { zone, teams: teamsInZone };
+    });
+
+    return entries.sort((a, b) => a.zone.localeCompare(b.zone));
+  })();
+
+  const getGroupId = (zone: string) => zone.replace(/\s+/g, '-').toLowerCase();
+
+  const getGroupStandings = (zone: string, teamIds: string[]) => {
+    const groupTeams = teamIds
+      .map(id => teams.find(t => t.id === id))
+      .filter(Boolean)
+      .map(team => team as Team);
+    const groupMatches = divisionMatches.filter(match => match.zone === zone);
+    return calculateStandings(groupTeams, groupMatches, {
+      pointsWin: selectedCompetitionData?.pointsWin,
+      pointsDraw: selectedCompetitionData?.pointsDraw,
+      pointsLoss: selectedCompetitionData?.pointsLoss,
+      tiebreakers: selectedCompetitionData?.tiebreakers,
+    });
+  };
+
+  const downloadGroupTable = async (zone: string) => {
+    const targetId = `group-table-${getGroupId(zone)}`;
+    const element = document.getElementById(targetId);
+    if (!element) return;
+
+    try {
+      const source = element.cloneNode(true) as HTMLElement;
+      source.style.backgroundImage =
+        "linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('/Assets/fondo-torneo.png')";
+      source.style.backgroundSize = 'contain';
+      source.style.backgroundPosition = 'center';
+      source.style.backgroundRepeat = 'no-repeat';
+      source.style.position = 'absolute';
+      source.style.left = '-10000px';
+      source.style.top = '0';
+      document.body.appendChild(source);
+
+      const { scrollWidth, scrollHeight } = source;
+      source.style.width = `${scrollWidth}px`;
+      source.style.height = `${scrollHeight}px`;
+      const canvas = await html2canvas(source, {
+        backgroundColor: '#0f1115',
+        scale: 2,
+        logging: false,
+        width: scrollWidth,
+        height: scrollHeight,
+        windowWidth: scrollWidth,
+        windowHeight: scrollHeight,
+      });
+      document.body.removeChild(source);
+      const link = document.createElement('a');
+      const divisionName = divisions.find(d => d.id === selectedDivision)?.name || 'division';
+      const competitionName = selectedCompetitionData?.name || 'copa';
+      const fileName = `${divisionName}-${competitionName}-${zone}`.toLowerCase().replace(/\s+/g, '-');
+      link.download = `tabla-${fileName}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    } catch (error) {
+      console.error('Error al generar la imagen:', error);
+      alert('Error al descargar la imagen');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -396,16 +901,47 @@ export function Fixture() {
                 >
                   {divisions.map(division => (
                     <option key={division.id} value={division.id}>
-                      {division.name} ({divisionTeams.filter(t => t.divisionId === division.id).length} equipos)
+                      {division.name} ({teams.filter(t => t.divisionId === division.id).length} equipos)
                     </option>
                   ))}
                 </select>
+                <label className="block text-sm font-medium text-muted-foreground mt-4 mb-2">
+                  Torneo
+                </label>
+                <select
+                  value={selectedCompetition}
+                  onChange={(e) => setSelectedCompetition(e.target.value)}
+                  className="w-full md:max-w-xs px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  {divisionCompetitions.length === 0 && (
+                    <option value="">Sin torneos</option>
+                  )}
+                  {divisionCompetitions.map(competition => (
+                    <option key={competition.id} value={competition.id}>
+                      {competition.name} · {competition.tournamentType === 'torneo' ? 'Liga' : 'Copa'}
+                    </option>
+                  ))}
+                </select>
+                {selectedCompetitionData && (
+                  <div className="mt-2 inline-flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <span
+                      className={`inline-block rounded-full px-2 py-1 font-medium ${
+                        selectedCompetitionData.tournamentType === 'torneo'
+                          ? 'bg-primary/15 text-primary'
+                          : 'bg-amber-500/15 text-amber-300'
+                      }`}
+                    >
+                      {selectedCompetitionData.tournamentType === 'torneo' ? 'Liga' : 'Copa'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                 <button
                   onClick={generateRandomFixture}
-                  disabled={divisionTeams.length < 2}
+                  disabled={divisionTeams.length < 2 || !selectedCompetitionData}
                   className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 transition-colors disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
                 >
                   <Shuffle className="w-5 h-5" />
@@ -413,7 +949,7 @@ export function Fixture() {
                 </button>
                 <button
                   onClick={() => openMatchModal()}
-                  disabled={divisionTeams.length < 2}
+                  disabled={divisionTeams.length < 2 || !selectedCompetitionData}
                   className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-5 h-5" />
@@ -525,6 +1061,123 @@ export function Fixture() {
             </div>
           </div>
 
+          {selectedCompetitionData?.tournamentType === 'copa' && groupedTeamsByZone.length > 0 && (
+            <div className="rounded-xl border border-border bg-card/80 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Grupos</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Distribución de equipos por grupo
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groupedTeamsByZone.map(group => (
+                  <div
+                    key={group.zone}
+                    className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm font-semibold text-foreground">
+                        {group.zone}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setExpandedGroupId(prev => (prev === group.zone ? null : group.zone))}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          {expandedGroupId === group.zone ? 'Ocultar tabla' : 'Ver tabla'}
+                        </button>
+                        <button
+                          onClick={() => downloadGroupTable(group.zone)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {group.teams.map(team => (
+                        <div key={team.id} className="flex items-center gap-2">
+                          {team.logoUrl ? (
+                            <img
+                              src={team.logoUrl}
+                              alt=""
+                              className="w-6 h-6 object-contain"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded bg-accent/60" />
+                          )}
+                          <span className="font-medium text-foreground">{team.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {expandedGroupId === group.zone && (
+                      <div className="mt-4 border-t border-border/60 pt-4">
+                        <div id={`group-table-${getGroupId(group.zone)}`} className="space-y-3">
+                          <div className="text-xs text-muted-foreground">
+                            Posiciones {group.zone}
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-accent/40">
+                                <tr>
+                                  <th className="text-left px-2 py-2">Pos</th>
+                                  <th className="text-left px-2 py-2">Equipo</th>
+                                  <th className="text-center px-2 py-2">PJ</th>
+                                  <th className="text-center px-2 py-2">PG</th>
+                                  <th className="text-center px-2 py-2">PE</th>
+                                  <th className="text-center px-2 py-2">PP</th>
+                                  <th className="text-center px-2 py-2">GF</th>
+                                  <th className="text-center px-2 py-2">GC</th>
+                                  <th className="text-center px-2 py-2">DIF</th>
+                                  <th className="text-center px-2 py-2">PTS</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/60">
+                                {getGroupStandings(group.zone, group.teams.map(team => team.id)).map((standing, index) => {
+                                  const team = teams.find(t => t.id === standing.teamId);
+                                  return (
+                                    <tr key={standing.teamId}>
+                                      <td className="px-2 py-2">{index + 1}</td>
+                                      <td className="px-2 py-2">{team?.name ?? 'Equipo'}</td>
+                                      <td className="px-2 py-2 text-center">{standing.played}</td>
+                                      <td className="px-2 py-2 text-center">{standing.won}</td>
+                                      <td className="px-2 py-2 text-center">{standing.drawn}</td>
+                                      <td className="px-2 py-2 text-center">{standing.lost}</td>
+                                      <td className="px-2 py-2 text-center">{standing.goalsFor}</td>
+                                      <td className="px-2 py-2 text-center">{standing.goalsAgainst}</td>
+                                      <td className="px-2 py-2 text-center">{standing.goalDifference}</td>
+                                      <td className="px-2 py-2 text-center font-semibold text-primary">
+                                        {standing.points}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {finalWinner && (
+            <div className="rounded-xl border border-border bg-card/80 p-6 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Trophy className="w-8 h-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Campeón</p>
+                  <h3 className="text-2xl font-semibold text-foreground">{finalWinner.teamName}</h3>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Fixture por fechas */}
           {filteredMatches.length === 0 ? (
             <div className="rounded-xl border border-border bg-card/80 p-12 text-center shadow-sm">
@@ -556,7 +1209,9 @@ export function Fixture() {
                   <div key={matchday} className="rounded-xl border border-border bg-card/80 overflow-hidden shadow-sm">
                     <div className="bg-accent/60 px-6 py-4 border-b border-border flex items-center justify-between">
                       <div>
-                      <h3 className="text-lg font-semibold text-foreground">Fecha {matchday}</h3>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        {getMatchdayTitle(matchdayMatches, matchday)}
+                      </h3>
                         <p className="text-sm text-muted-foreground">
                           {playedMatches} de {matchdayMatches.length} partidos jugados
                         </p>
@@ -620,11 +1275,11 @@ export function Fixture() {
                                       className="flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-lg cursor-pointer hover:border-primary/60"
                                     >
                                       <span className="text-2xl font-semibold text-foreground">
-                                        {match.homeScore}
+                                        {getScoreLabel(match, 'home')}
                                       </span>
                                       <span className="text-muted-foreground">-</span>
                                       <span className="text-2xl font-semibold text-foreground">
-                                        {match.awayScore}
+                                        {getScoreLabel(match, 'away')}
                                       </span>
                                     </div>
                                     <span className="md:hidden text-xs font-semibold uppercase bg-accent/60 text-muted-foreground px-2 py-1 rounded-full">
@@ -736,6 +1391,61 @@ export function Fixture() {
                   className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-center text-2xl font-semibold"
                 />
               </div>
+
+              {editingMatch.fixtureType !== 'regular'
+                && !editingMatch.isFirstLeg
+                && Number(scoreForm.homeScore) === Number(scoreForm.awayScore)
+                && scoreForm.homeScore !== ''
+                && scoreForm.awayScore !== '' && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold text-foreground mb-3">Penales</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">
+                          Ganador
+                        </label>
+                        <select
+                          value={scoreForm.penaltiesWinnerTeamId}
+                          onChange={(e) => setScoreForm({ ...scoreForm, penaltiesWinnerTeamId: e.target.value })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        >
+                          <option value="">Seleccionar</option>
+                          <option value={editingMatch.homeTeamId}>{getTeamName(editingMatch.homeTeamId)}</option>
+                          <option value={editingMatch.awayTeamId}>{getTeamName(editingMatch.awayTeamId)}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">
+                          Penales {getTeamName(editingMatch.homeTeamId)}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          value={scoreForm.penaltiesHomeScore}
+                          onChange={(e) => setScoreForm({ ...scoreForm, penaltiesHomeScore: e.target.value })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">
+                          Penales {getTeamName(editingMatch.awayTeamId)}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          value={scoreForm.penaltiesAwayScore}
+                          onChange={(e) => setScoreForm({ ...scoreForm, penaltiesAwayScore: e.target.value })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Se definen por 5 tiros por equipo.
+                    </p>
+                  </div>
+                )}
 
               <details className="border-t pt-4" open>
                 <summary className="flex items-center justify-between cursor-pointer list-none">
@@ -1110,7 +1820,17 @@ export function Fixture() {
               <button
                 onClick={() => {
                   setEditingMatch(null);
-                  setScoreForm({ homeScore: '', awayScore: '', goals: [], assists: [], cards: [], substitutions: [] });
+                  setScoreForm({
+                    homeScore: '',
+                    awayScore: '',
+                    penaltiesWinnerTeamId: '',
+                    penaltiesHomeScore: '',
+                    penaltiesAwayScore: '',
+                    goals: [],
+                    assists: [],
+                    cards: [],
+                    substitutions: [],
+                  });
                   setQuickGoalForm({ teamId: '', playerId: '', count: 1 });
                 }}
                 className="flex-1 px-4 py-2 border border-border text-muted-foreground rounded-lg hover:bg-accent transition-colors"

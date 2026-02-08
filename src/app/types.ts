@@ -6,11 +6,15 @@ export type Tiebreaker = 'points' | 'goalDifference' | 'goalsFor' | 'goalsAgains
 export interface Division {
   id: string;
   name: string;
+}
+
+export interface Competition {
+  id: string;
+  divisionId: string;
+  name: string;
   tournamentType: TournamentType;
   startDate?: string;
   endDate?: string;
-  regularPhaseMatches?: number; // Para copa: cuántas fechas antes de eliminación
-  twoLeggedKnockout?: boolean; // Para copa: ida y vuelta en eliminatorias
   pointsWin?: number;
   pointsDraw?: number;
   pointsLoss?: number;
@@ -19,6 +23,8 @@ export interface Division {
   zonesEnabled?: boolean;
   zonesCount?: number;
   roundRobinHomeAway?: boolean;
+  groupCount?: number;
+  twoLeggedKnockout?: boolean;
 }
 
 export interface Team {
@@ -40,7 +46,14 @@ export interface Player {
   photoUrl?: string;
 }
 
-export type FixtureType = 'regular' | 'round-of-16' | 'quarter-final' | 'semi-final' | 'final';
+export type FixtureType =
+  | 'regular'
+  | 'round-of-64'
+  | 'round-of-32'
+  | 'round-of-16'
+  | 'quarter-final'
+  | 'semi-final'
+  | 'final';
 
 export type GoalType = 'goal' | 'ownGoal';
 export type CardType = 'yellow' | 'doubleYellow' | 'red';
@@ -79,12 +92,16 @@ export interface SubstitutionEvent {
 export interface Match {
   id: string;
   divisionId: string;
+  competitionId?: string;
   matchday: number; // Número de fecha
   date?: string; // YYYY-MM-DD
   homeTeamId: string;
   awayTeamId: string;
   homeScore?: number;
   awayScore?: number;
+  penaltiesWinnerTeamId?: string;
+  penaltiesHomeScore?: number;
+  penaltiesAwayScore?: number;
   fixtureType: FixtureType;
   isFirstLeg?: boolean; // Para ida y vuelta
   zone?: string;
