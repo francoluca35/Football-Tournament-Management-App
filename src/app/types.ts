@@ -40,10 +40,45 @@ export interface Player {
 
 export type FixtureType = 'regular' | 'round-of-16' | 'quarter-final' | 'semi-final' | 'final';
 
+export type GoalType = 'goal' | 'ownGoal';
+export type CardType = 'yellow' | 'doubleYellow' | 'red';
+
+export interface AssistEvent {
+  id: string;
+  teamId: string;
+  playerId: string;
+  count: number;
+}
+
+export interface GoalEvent {
+  id: string;
+  teamId: string;
+  playerId: string;
+  type: GoalType;
+  assistPlayerId?: string;
+  isPenalty?: boolean;
+  minute?: number;
+}
+
+export interface CardEvent {
+  id: string;
+  teamId: string;
+  playerId: string;
+  type: CardType;
+}
+
+export interface SubstitutionEvent {
+  id: string;
+  teamId: string;
+  playerOutId: string;
+  playerInId: string;
+}
+
 export interface Match {
   id: string;
   divisionId: string;
   matchday: number; // Número de fecha
+  date?: string; // YYYY-MM-DD
   homeTeamId: string;
   awayTeamId: string;
   homeScore?: number;
@@ -51,6 +86,11 @@ export interface Match {
   fixtureType: FixtureType;
   isFirstLeg?: boolean; // Para ida y vuelta
   zone?: string;
+  goals?: GoalEvent[];
+  assists?: AssistEvent[];
+  cards?: CardEvent[];
+  substitutions?: SubstitutionEvent[];
+  status?: 'pending' | 'completed' | 'suspended';
 }
 
 export interface Standing {
