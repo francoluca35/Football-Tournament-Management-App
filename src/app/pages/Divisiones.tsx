@@ -4,13 +4,32 @@ import { getDivisions, saveDivisions, getTeams } from '../storage';
 import type { Division, TournamentType, Tiebreaker } from '../types';
 import { generateId } from '../utils';
 
+type DivisionFormData = {
+  name: string;
+  tournamentType: TournamentType;
+  startDate: string;
+  endDate: string;
+  regularPhaseMatches: number;
+  twoLeggedKnockout: boolean;
+  pointsWin: number;
+  pointsDraw: number;
+  pointsLoss: number;
+  tiebreakers: Tiebreaker[];
+  maxTeams: number | '';
+  zonesEnabled: boolean;
+  zonesCount: number;
+  roundRobinHomeAway: boolean;
+};
+
 export function Divisiones() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDivision, setEditingDivision] = useState<Division | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DivisionFormData>({
     name: '',
     tournamentType: 'torneo' as TournamentType,
+    startDate: '',
+    endDate: '',
     regularPhaseMatches: 6,
     twoLeggedKnockout: false,
     pointsWin: 3,
@@ -55,6 +74,8 @@ export function Divisiones() {
               ...editingDivision,
               name: formData.name,
               tournamentType: formData.tournamentType,
+              startDate: formData.startDate || undefined,
+              endDate: formData.endDate || undefined,
               regularPhaseMatches: formData.tournamentType === 'copa' ? formData.regularPhaseMatches : undefined,
               twoLeggedKnockout: formData.tournamentType === 'copa' ? formData.twoLeggedKnockout : undefined,
               pointsWin: formData.pointsWin,
@@ -73,6 +94,8 @@ export function Divisiones() {
         id: generateId(),
         name: formData.name,
         tournamentType: formData.tournamentType,
+        startDate: formData.startDate || undefined,
+        endDate: formData.endDate || undefined,
         regularPhaseMatches: formData.tournamentType === 'copa' ? formData.regularPhaseMatches : undefined,
         twoLeggedKnockout: formData.tournamentType === 'copa' ? formData.twoLeggedKnockout : undefined,
         pointsWin: formData.pointsWin,
@@ -113,6 +136,8 @@ export function Divisiones() {
       setFormData({
         name: division.name,
         tournamentType: division.tournamentType,
+        startDate: division.startDate ?? '',
+        endDate: division.endDate ?? '',
         regularPhaseMatches: division.regularPhaseMatches || 6,
         twoLeggedKnockout: division.twoLeggedKnockout || false,
         pointsWin: division.pointsWin ?? 3,
@@ -133,6 +158,8 @@ export function Divisiones() {
       setFormData({
         name: '',
         tournamentType: 'torneo',
+        startDate: '',
+        endDate: '',
         regularPhaseMatches: 6,
         twoLeggedKnockout: false,
         pointsWin: 3,
@@ -236,7 +263,7 @@ export function Divisiones() {
                         ? 'bg-primary/15 text-primary'
                         : 'bg-amber-500/15 text-amber-300'
                     }`}>
-                      {division.tournamentType === 'torneo' ? 'Torneo' : 'Copa'}
+                      {division.tournamentType === 'torneo' ? 'Liga' : 'Copa'}
                     </span>
                   </div>
                 </div>
@@ -260,6 +287,26 @@ export function Divisiones() {
                 <div className="flex justify-between">
                   <span>Equipos:</span>
                   <span className="font-semibold text-foreground">{getTeamCount(division.id)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inicio:</span>
+                  <span className="font-semibold text-foreground">
+                    {division.startDate || 'Sin fecha'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Finalizado:</span>
+                  <span className="font-semibold text-foreground">
+                    {division.endDate || 'Sin fecha'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Disponibles:</span>
+                  <span className="font-semibold text-foreground">
+                    {division.maxTeams
+                      ? Math.max(division.maxTeams - getTeamCount(division.id), 0)
+                      : 'Sin límite'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Límite:</span>
@@ -347,9 +394,34 @@ export function Divisiones() {
                   onChange={(e) => setFormData({ ...formData, tournamentType: e.target.value as TournamentType })}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                  <option value="torneo">Torneo (Liga)</option>
+                  <option value="torneo">Liga</option>
                   <option value="copa">Copa (Fase + Eliminatorias)</option>
                 </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fecha de inicio
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Fecha de finalizado
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
               </div>
 
               {formData.tournamentType === 'copa' && (

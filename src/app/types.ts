@@ -7,6 +7,8 @@ export interface Division {
   id: string;
   name: string;
   tournamentType: TournamentType;
+  startDate?: string;
+  endDate?: string;
   regularPhaseMatches?: number; // Para copa: cuántas fechas antes de eliminación
   twoLeggedKnockout?: boolean; // Para copa: ida y vuelta en eliminatorias
   pointsWin?: number;
