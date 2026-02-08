@@ -33,9 +33,11 @@ export type PlayerPosition = 'Arquero' | 'Defensor' | 'Mediocampista' | 'Delante
 export interface Player {
   id: string;
   teamId: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   number: number;
   position: PlayerPosition;
+  photoUrl?: string;
 }
 
 export type FixtureType = 'regular' | 'round-of-16' | 'quarter-final' | 'semi-final' | 'final';

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, UserCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Upload, UserCircle } from 'lucide-react';
 import { getTeams, getPlayers, savePlayers, getDivisions } from '../storage';
 import type { Player, PlayerPosition } from '../types';
-import { generateId } from '../utils';
+import { generateId, fileToBase64 } from '../utils';
 
 export function Jugadores() {
   const [divisions, setDivisions] = useState(getDivisions());
@@ -14,10 +14,12 @@ export function Jugadores() {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [modalDivisionId, setModalDivisionId] = useState<string>('');
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     teamId: '',
     number: 1,
     position: 'Mediocampista' as PlayerPosition,
+    photoUrl: '',
   });
 
   useEffect(() => {
@@ -40,8 +42,8 @@ export function Jugadores() {
   });
 
   const handleSave = () => {
-    if (!formData.name.trim() || !formData.teamId) {
-      alert('El nombre y el equipo son requeridos');
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.teamId) {
+      alert('El nombre, apellido y el equipo son requeridos');
       return;
     }
 
@@ -52,20 +54,24 @@ export function Jugadores() {
         p.id === editingPlayer.id
           ? {
               ...editingPlayer,
-              name: formData.name,
+              firstName: formData.firstName,
+              lastName: formData.lastName,
               teamId: formData.teamId,
               number: formData.number,
               position: formData.position,
+              photoUrl: formData.photoUrl || undefined,
             }
           : p
       );
     } else {
       const newPlayer: Player = {
         id: generateId(),
-        name: formData.name,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         teamId: formData.teamId,
         number: formData.number,
         position: formData.position,
+        photoUrl: formData.photoUrl || undefined,
       };
       updatedPlayers = [...players, newPlayer];
     }
@@ -90,10 +96,12 @@ export function Jugadores() {
       setEditingPlayer(player);
       setModalDivisionId(teamDivisionId);
       setFormData({
-        name: player.name,
+        firstName: player.firstName,
+        lastName: player.lastName,
         teamId: player.teamId,
         number: player.number,
         position: player.position,
+        photoUrl: player.photoUrl || '',
       });
     } else {
       setEditingPlayer(null);
@@ -103,10 +111,12 @@ export function Jugadores() {
       const defaultTeamId = teams.find(t => t.divisionId === defaultDivisionId)?.id || '';
       setModalDivisionId(defaultDivisionId);
       setFormData({
-        name: '',
+        firstName: '',
+        lastName: '',
         teamId: defaultTeamId,
         number: 1,
         position: 'Mediocampista',
+        photoUrl: '',
       });
     }
     setIsModalOpen(true);
@@ -123,6 +133,22 @@ export function Jugadores() {
 
   const getTeamLogo = (teamId: string) => {
     return teams.find(t => t.id === teamId)?.logoUrl;
+  };
+
+  const getPlayerFullName = (player: Player) => {
+    return `${player.firstName} ${player.lastName}`.trim();
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const base64 = await fileToBase64(file);
+        setFormData({ ...formData, photoUrl: base64 });
+      } catch (error) {
+        alert('Error al cargar la imagen');
+      }
+    }
   };
 
   const modalTeams = modalDivisionId
@@ -253,8 +279,16 @@ export function Jugadores() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <UserCircle className="w-8 h-8 text-muted-foreground" />
-                              <span className="font-medium text-foreground">{player.name}</span>
+                              {player.photoUrl ? (
+                                <img
+                                  src={player.photoUrl}
+                                  alt={getPlayerFullName(player)}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              ) : (
+                                <UserCircle className="w-8 h-8 text-muted-foreground" />
+                              )}
+                              <span className="font-medium text-foreground">{getPlayerFullName(player)}</span>
                             </div>
                           </td>
                           <td className="px-6 py-4">
@@ -352,13 +386,26 @@ export function Jugadores() {
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Nombre del Jugador
+                  Nombre
                 </label>
                 <input
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ej: Lionel Messi"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="Ej: Lionel"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Apellido
+                </label>
+                <input
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="Ej: Messi"
                   className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
@@ -392,6 +439,31 @@ export function Jugadores() {
                     <option value="Mediocampista">Mediocampista</option>
                     <option value="Delantero">Delantero</option>
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Foto del Jugador
+                </label>
+                <div className="flex items-center gap-4">
+                  {formData.photoUrl && (
+                    <img
+                      src={formData.photoUrl}
+                      alt="Preview"
+                      className="w-16 h-16 object-cover rounded-full"
+                    />
+                  )}
+                  <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors text-muted-foreground">
+                    <Upload className="w-4 h-4" />
+                    <span className="text-sm">Subir Imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
             </div>

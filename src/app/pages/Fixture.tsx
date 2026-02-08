@@ -331,7 +331,8 @@ export function Fixture() {
   const getPlayerLabel = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
     if (!player) return 'Jugador';
-    return `${player.name} #${player.number}`;
+    const fullName = `${player.firstName} ${player.lastName}`.trim();
+    return `${fullName} #${player.number}`;
   };
 
   const getTeamLogo = (teamId: string) => {
