@@ -106,3 +106,9 @@ export interface Standing {
   goalDifference: number;
   points: number;
 }
+
+export interface TournamentSettings {
+  promotionsPerDivision: number;
+  relegationsPerDivision: number;
+  applyToCups: boolean;
+}

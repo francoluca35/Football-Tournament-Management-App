@@ -1,16 +1,23 @@
 // Gestión de datos en localStorage (temporal, migrar a Supabase después)
 
-import type { Division, Team, Player, Match, Tiebreaker } from './types';
+import type { Division, Team, Player, Match, Tiebreaker, TournamentSettings } from './types';
 
 const STORAGE_KEYS = {
   DIVISIONS: 'tournament_divisions',
   TEAMS: 'tournament_teams',
   PLAYERS: 'tournament_players',
   MATCHES: 'tournament_matches',
+  SETTINGS: 'tournament_settings',
+  MOVEMENTS: 'tournament_movements',
 };
 
 const isBrowser = () => typeof window !== 'undefined';
 const DEFAULT_TIEBREAKERS: Tiebreaker[] = ['points', 'goalDifference', 'goalsFor'];
+const DEFAULT_SETTINGS: TournamentSettings = {
+  promotionsPerDivision: 2,
+  relegationsPerDivision: 2,
+  applyToCups: false,
+};
 
 const normalizeDivision = (division: Division): Division => {
   return {
@@ -96,4 +103,39 @@ export const getMatches = (): Match[] => {
 export const saveMatches = (matches: Match[]) => {
   if (!isBrowser()) return;
   localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
+};
+
+// Configuraciones generales
+export const getTournamentSettings = (): TournamentSettings => {
+  if (!isBrowser()) return DEFAULT_SETTINGS;
+  const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+  if (!data) return DEFAULT_SETTINGS;
+  const parsed = JSON.parse(data) as Partial<TournamentSettings>;
+  return {
+    promotionsPerDivision: Number.isFinite(parsed.promotionsPerDivision)
+      ? Math.max(0, Math.floor(parsed.promotionsPerDivision as number))
+      : DEFAULT_SETTINGS.promotionsPerDivision,
+    relegationsPerDivision: Number.isFinite(parsed.relegationsPerDivision)
+      ? Math.max(0, Math.floor(parsed.relegationsPerDivision as number))
+      : DEFAULT_SETTINGS.relegationsPerDivision,
+    applyToCups: typeof parsed.applyToCups === 'boolean'
+      ? parsed.applyToCups
+      : DEFAULT_SETTINGS.applyToCups,
+  };
+};
+
+export const saveTournamentSettings = (settings: TournamentSettings) => {
+  if (!isBrowser()) return;
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+};
+
+export const getMovementsLog = (): Record<string, string> => {
+  if (!isBrowser()) return {};
+  const data = localStorage.getItem(STORAGE_KEYS.MOVEMENTS);
+  return data ? JSON.parse(data) : {};
+};
+
+export const saveMovementsLog = (log: Record<string, string>) => {
+  if (!isBrowser()) return;
+  localStorage.setItem(STORAGE_KEYS.MOVEMENTS, JSON.stringify(log));
 };
