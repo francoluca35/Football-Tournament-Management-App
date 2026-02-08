@@ -12,6 +12,7 @@ export function Jugadores() {
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [modalDivisionId, setModalDivisionId] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     teamId: '',
@@ -85,7 +86,9 @@ export function Jugadores() {
 
   const openModal = (player?: Player) => {
     if (player) {
+      const teamDivisionId = teams.find(t => t.id === player.teamId)?.divisionId || '';
       setEditingPlayer(player);
+      setModalDivisionId(teamDivisionId);
       setFormData({
         name: player.name,
         teamId: player.teamId,
@@ -94,9 +97,14 @@ export function Jugadores() {
       });
     } else {
       setEditingPlayer(null);
+      const defaultDivisionId = selectedDivision !== 'all'
+        ? selectedDivision
+        : teams[0]?.divisionId || '';
+      const defaultTeamId = teams.find(t => t.divisionId === defaultDivisionId)?.id || '';
+      setModalDivisionId(defaultDivisionId);
       setFormData({
         name: '',
-        teamId: filteredTeams[0]?.id || teams[0]?.id || '',
+        teamId: defaultTeamId,
         number: 1,
         position: 'Mediocampista',
       });
@@ -116,6 +124,10 @@ export function Jugadores() {
   const getTeamLogo = (teamId: string) => {
     return teams.find(t => t.id === teamId)?.logoUrl;
   };
+
+  const modalTeams = modalDivisionId
+    ? teams.filter(t => t.divisionId === modalDivisionId)
+    : teams;
 
   const positionColors: Record<PlayerPosition, string> = {
     'Arquero': 'bg-amber-500/15 text-amber-300',
@@ -296,15 +308,27 @@ export function Jugadores() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Nombre del Jugador
+                  División
                 </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ej: Lionel Messi"
+                <select
+                  value={modalDivisionId}
+                  onChange={(e) => {
+                    const nextDivisionId = e.target.value;
+                    const nextTeams = teams.filter(team => team.divisionId === nextDivisionId);
+                    setModalDivisionId(nextDivisionId);
+                    setFormData({
+                      ...formData,
+                      teamId: nextTeams[0]?.id || '',
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
+                >
+                  {divisions.map(division => (
+                    <option key={division.id} value={division.id}>
+                      {division.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -316,12 +340,27 @@ export function Jugadores() {
                   onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                  {teams.map(team => (
+                  {modalTeams.length === 0 ? (
+                    <option value="">Sin equipos</option>
+                  ) : modalTeams.map(team => (
                     <option key={team.id} value={team.id}>
                       {team.name}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Nombre del Jugador
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ej: Lionel Messi"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-input-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
