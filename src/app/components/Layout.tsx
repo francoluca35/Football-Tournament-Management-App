@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Calendar, Home, Menu, Moon, Power, Search, Sun, Table2, Trophy, UserCircle, Users, X } from 'lucide-react';
+import { Calendar, Home, Menu, Moon, Power, Search, Sun, Table2, Trophy, Users, X } from 'lucide-react';
 
 export function Layout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -66,7 +66,6 @@ export function Layout({ children }: { children: ReactNode }) {
     { path: '/', icon: Home, label: 'Inicio' },
     { path: '/divisiones', icon: Trophy, label: 'Divisiones' },
     { path: '/equipos', icon: Users, label: 'Equipos' },
-    { path: '/jugadores', icon: UserCircle, label: 'Jugadores' },
     { path: '/fixture', icon: Calendar, label: 'Fixture' },
     { path: '/tabla', icon: Table2, label: 'Tabla' },
   ];

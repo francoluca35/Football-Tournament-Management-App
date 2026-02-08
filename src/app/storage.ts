@@ -52,10 +52,33 @@ export const saveTeams = (teams: Team[]) => {
 };
 
 // Jugadores
+const normalizePlayer = (player: Player & { name?: string }): Player => {
+  if (player.firstName && player.lastName) {
+    return player;
+  }
+
+  if (player.name) {
+    const parts = player.name.trim().split(/\s+/);
+    const firstName = parts[0] ?? '';
+    const lastName = parts.slice(1).join(' ') || '';
+    return {
+      ...player,
+      firstName,
+      lastName,
+    };
+  }
+
+  return {
+    ...player,
+    firstName: player.firstName ?? '',
+    lastName: player.lastName ?? '',
+  };
+};
+
 export const getPlayers = (): Player[] => {
   if (!isBrowser()) return [];
   const data = localStorage.getItem(STORAGE_KEYS.PLAYERS);
-  return data ? JSON.parse(data) : [];
+  return data ? JSON.parse(data).map(normalizePlayer) : [];
 };
 
 export const savePlayers = (players: Player[]) => {
