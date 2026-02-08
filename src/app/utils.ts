@@ -24,6 +24,7 @@ export const generateRoundRobinFixture = (
   options?: {
     doubleRoundRobin?: boolean;
     zone?: string;
+    competitionId?: string;
   }
 ): Match[] => {
   const matches: Match[] = [];
@@ -46,6 +47,7 @@ export const generateRoundRobinFixture = (
         matches.push({
           id: generateId(),
           divisionId,
+          competitionId: options?.competitionId,
           matchday: round + 1,
           homeTeamId: home.id,
           awayTeamId: away.id,
